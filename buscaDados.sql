@@ -1,19 +1,28 @@
 
 /* Tempo de produção */
-SELECT ROUND(totpro / 60), ROUND(AVG(totpro) / 60), ROUND(AVG(numero_incidentes)) FROM dados 
-WHERE  totpro > 60
-GROUP BY ROUND(totpro / 60) 
-ORDER BY sicla.totpro DESC;
+CREATE OR REPLACE VIEW TEMPO_PRODUCAO_SUB AS
+	SELECT 
+			ROUND(totpro / 60) AS TEMPO, 
+			numero_incidentes_producao 
+		FROM dados
+		WHERE 
+			totpro > 60;
 
-SELECT TEMPO, AVG(numero_incidentes_producao) * 30, COUNT(numero_incidentes_producao) T FROM (
-SELECT ROUND(totpro / 60) AS TEMPO, numero_incidentes_producao FROM dados
-WHERE  totpro > 60
-) T
+CREATE OR REPLACE VIEW TEMPO_PRODUCAO AS
+	SELECT 
+		tempo, 
+		AVG(numero_incidentes_producao) * 30 AS mediaNumeroIncidentes, 
+		COUNT(numero_incidentes_producao) numeroIncidentes 
+	FROM TEMPO_PRODUCAO_SUB
+	GROUP BY 
+		tempo
+	HAVING 
+		numeroIncidentes > 10
+	ORDER BY 
+		tempo;
 
-GROUP BY TEMPO
-HAVING T > 10
-ORDER BY TEMPO;
 
+SELECT * FROM TEMPO_PRODUCAO;
 
 /* Tempo de revisão */
 
