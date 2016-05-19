@@ -26,7 +26,7 @@ public class APIConnectionFactory implements RestAPIConnectionFactory {
     static {
         driverJdbc = "com.mysql.jdbc.Driver";
         url = "jdbc:mysql://localhost:3306";
-        database = "analise_desempenho";
+        database = "sicla";
         usuario = "root";
         senha = "";
         registraDriver();

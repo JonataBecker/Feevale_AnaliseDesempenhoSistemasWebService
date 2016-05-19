@@ -1,60 +1,142 @@
 
-/* Tempo de produção */
-CREATE OR REPLACE VIEW TEMPO_PRODUCAO_SUB AS
+/** Tempo de produto x Tempo incidentes */
+CREATE OR REPLACE VIEW SUB_TEMPO_PRODUCAO_TEMPO_PRODUCAO_INCIDENTES AS
 	SELECT 
-		ROUND(totpro / 60) AS TEMPO, 
-		numero_incidentes_producao 
+		TOTAL_MINUTOS AS MINUTOS, 
+		PERIODO,
+		CASE 
+		  WHEN TIPO = 1 THEN 1
+		  WHEN TIPO = 3 THEN 1
+		  WHEN TIPO = 2 THEN 2
+		  WHEN TIPO = 4 THEN 2
+		  WHEN TIPO = 7 THEN 2
+		  END
+		AS TIPO    
 	FROM 
-		dados
+		V_FICHAS
 	WHERE 
-		totpro > 60;
+		TIPO IN (1, 2, 3, 4, 7);
 
-CREATE OR REPLACE VIEW TEMPO_PRODUCAO AS
+CREATE OR REPLACE VIEW SUBPRODUCAO_TEMPO_PRODUCAO_TEMPO_PRODUCAO_INCIDENTES AS
 	SELECT 
-		tempo, 
-		AVG(numero_incidentes_producao) * 30 AS mediaNumeroIncidentes, 
-		COUNT(numero_incidentes_producao) numeroIncidentes 
+		FLOOR(SUM(MINUTOS) / 60) AS HORAS, 
+		TIPO, 
+		PERIODO 
 	FROM 
-		TEMPO_PRODUCAO_SUB
+		SUB_TEMPO_PRODUCAO_TEMPO_PRODUCAO_INCIDENTES
+	WHERE
+		TIPO = 2
 	GROUP BY 
-		tempo
-	HAVING 
-		numeroIncidentes > 10
-	ORDER BY 
-		tempo;
+		TIPO, 
+		PERIODO;
 
-
-SELECT * FROM TEMPO_PRODUCAO;
-
-/* Tempo de revisão */
-
-
-CREATE OR REPLACE VIEW TEMPO_REVISAO_SUB AS
+CREATE OR REPLACE VIEW SUBCORRECAO_TEMPO_PRODUCAO_TEMPO_PRODUCAO_INCIDENTES AS
 	SELECT 
-		ROUND((rev_programacao * 100) / totpro) AS tempo, 
-        totrevpro, 
-        totpro, 
-        numero_incidentes_producao 
+		FLOOR(SUM(MINUTOS) / 60) AS HORAS, 
+		TIPO, 
+		PERIODO 
 	FROM 
-		dados 
+		SUB_TEMPO_PRODUCAO_TEMPO_PRODUCAO_INCIDENTES
+	WHERE
+		TIPO = 1
+	GROUP BY 
+		TIPO, 
+		PERIODO;      
+      
+CREATE OR REPLACE VIEW TEMPO_PRODUCAO_TEMPO_PRODUCAO_INCIDENTES AS
+	SELECT 
+		p.periodo as periodo,
+        p.horas as producao,
+        c.horas as incidentes
+	FROM 
+		SUBPRODUCAO_TEMPO_PRODUCAO_TEMPO_PRODUCAO_INCIDENTES P
+	INNER JOIN 
+		SUBCORRECAO_TEMPO_PRODUCAO_TEMPO_PRODUCAO_INCIDENTES C 
+			ON (C.Periodo = p.Periodo)
+	;
+
+ 
+CREATE OR REPLACE VIEW SUBTEMPO_REVISAO AS
+	SELECT 
+		*,
+		ROUND(REV_PROGRAMACAO / TOTPRO * 100) AS PERCENTUAL_REVISAO
+	FROM 
+		v_fichas
 	WHERE 
-		totpro > 60 AND 
-        totpro > rev_programacao
-    HAVING
-		tempo > 0 AND
-		tempo < 90
-	ORDER BY 
-		tempo DESC;
-
-CREATE OR REPLACE VIEW TEMPO_REVISAO AS 
-	SELECT 
-		tempo, 
-        AVG(numero_incidentes_producao) * 30 as mediaNumeroIncidentes,
-        COUNT(*) numeroIncidentes
-	FROM 
-		TEMPO_REVISAO_SUB
-	GROUP BY 
-		tempo
-	HAVING 
-		numeroIncidentes > 10
+		REV_PROGRAMACAO < TOTPRO AND
+        HORAS_CORRECAO * 100 / TOTAL_MINUTOS < 60;
 ;
+
+CREATE OR REPLACE VIEW TEMPO_REVISAO AS
+	SELECT
+		PERIODO AS periodo,
+        Percentual_Revisao,
+        CONCAT(MIN(Percentual_Revisao), ' - ', MAX(Percentual_Revisao)) AS intervalo,
+		SUM(HORAS_CORRECAO) * 100 / SUM(TOTAL_MINUTOS) AS incidentes
+	FROM
+		SUBTEMPO_REVISAO
+	WHERE 
+		TIPO IN (5, 6, 7)
+	GROUP BY 
+		FLOOR(PERCENTUAL_REVISAO / 10)
+	ORDER BY intervalo;
+    
+CREATE OR REPLACE VIEW TEMPO_MEDIO_REVISAO AS
+	SELECT
+		PERIODO AS periodo,
+		Percentual_Revisao,
+		CONCAT(MIN(Percentual_Revisao), ' - ', MAX(Percentual_Revisao)) AS intervalo,
+		
+		SUM(REV_PROGRAMACAO) * 100 / (SELECT SUM(REV_PROGRAMACAO) FROM SUBTEMPO_REVISAO  WHERE TIPO IN (5, 6, 7)) AS percentualRevisao
+	FROM
+		SUBTEMPO_REVISAO
+	WHERE 
+		TIPO IN (5, 6, 7)
+	GROUP BY 
+		FLOOR(PERCENTUAL_REVISAO / 10)
+	ORDER BY intervalo;
+
+CREATE OR REPLACE VIEW INFORMACAO_PERIODO AS
+	SELECT 
+		Periodo AS periodo,
+		COUNT(*) AS numeroProducao,
+		SUM(NUMERO_ERROS) AS numeroErros,
+		SUM(TOTAL_MINUTOS) / 60 AS totalProducaoHoras,
+		SUM(HORAS_CORRECAO)  / 60 AS totalIncidentesHoras,
+		(SUM(TOTAL_MINUTOS) / 60) / COUNT(*) AS mediaProducao,
+		(SUM(HORAS_CORRECAO)  / 60) / SUM(NUMERO_ERROS) AS mediaIncidentes
+	FROM 
+		v_fichas
+	GROUP BY 
+		Periodo;
+
+
+
+SELECT * FROM T;
+
+
+SELECT
+		PERIODO AS periodo,
+        Percentual_Revisao,
+        CONCAT(MIN(Percentual_Revisao), ' - ', MAX(Percentual_Revisao)) AS intervalo,
+		SUM(HORAS_CORRECAO) * 100 / SUM(TOTAL_MINUTOS) AS incidentes,
+        COUNT(*)
+	FROM
+		SUBTEMPO_REVISAO
+	WHERE 
+		TIPO IN (5,6,7)
+	GROUP BY 
+		FLOOR(PERCENTUAL_REVISAO / 10)
+	ORDER BY intervalo;
+    
+
+SELECT *, HORAS_CORRECAO * 100 / TOTAL_MINUTOS AS T FROM SUBTEMPO_REVISAO
+
+WHERE Percentual_Revisao > 60 AND Percentual_Revisao < 70 AND HORAS_CORRECAO > 0
+
+ORDER BY T DESC
+;
+
+
+
+
