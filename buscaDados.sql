@@ -72,6 +72,8 @@ CREATE OR REPLACE VIEW TEMPO_REVISAO AS
 		PERIODO AS periodo,
         Percentual_Revisao,
         CONCAT(MIN(Percentual_Revisao), ' - ', MAX(Percentual_Revisao)) AS intervalo,
+        AVG(Percentual_Revisao) AS percentualRevisaoMedio,
+        SUM(REV_PROGRAMACAO) AS totalRevisao,
 		SUM(HORAS_CORRECAO) * 100 / SUM(TOTAL_MINUTOS) AS incidentes
 	FROM
 		SUBTEMPO_REVISAO
@@ -85,9 +87,8 @@ CREATE OR REPLACE VIEW TEMPO_MEDIO_REVISAO AS
 	SELECT
 		PERIODO AS periodo,
 		Percentual_Revisao,
-		CONCAT(MIN(Percentual_Revisao), ' - ', MAX(Percentual_Revisao)) AS intervalo,
-		
-		SUM(REV_PROGRAMACAO) * 100 / (SELECT SUM(REV_PROGRAMACAO) FROM SUBTEMPO_REVISAO  WHERE TIPO IN (5, 6, 7)) AS percentualRevisao
+		CONCAT(MIN(Percentual_Revisao), ' - ', MAX(Percentual_Revisao)) AS intervalo,		
+		SUM(TOTAL_MINUTOS) * 100 / (SELECT SUM(TOTAL_MINUTOS) FROM SUBTEMPO_REVISAO WHERE TIPO IN (5, 6, 7)) AS percentualProducao
 	FROM
 		SUBTEMPO_REVISAO
 	WHERE 
@@ -96,23 +97,51 @@ CREATE OR REPLACE VIEW TEMPO_MEDIO_REVISAO AS
 		FLOOR(PERCENTUAL_REVISAO / 10)
 	ORDER BY intervalo;
 
+CREATE OR REPLACE VIEW TEMPO_MEDIO_REVISAO_CORRECAO AS
+	SELECT
+		PERIODO AS periodo,
+		Percentual_Revisao,
+		CONCAT(MIN(Percentual_Revisao), ' - ', MAX(Percentual_Revisao)) AS intervalo,		
+		SUM(HORAS_CORRECAO),
+        SUM(HORAS_CORRECAO) / 60 AS TOT_HOR,
+        SUM(TOTAL_MINUTOS) TOT,
+        SUM(REV_PROGRAMACAO) TOT_REV
+	FROM
+		SUBTEMPO_REVISAO
+	WHERE 
+		TIPO IN (5, 6, 7)
+	GROUP BY 
+		FLOOR(PERCENTUAL_REVISAO / 10)
+	ORDER BY intervalo;
+
+
 CREATE OR REPLACE VIEW INFORMACAO_PERIODO AS
 	SELECT 
 		Periodo AS periodo,
 		COUNT(*) AS numeroProducao,
-		SUM(NUMERO_ERROS) AS numeroErros,
-		SUM(TOTAL_MINUTOS) / 60 AS totalProducaoHoras,
+		SUM(NUMERO_ERROS) AS numeroIncidentes,
+		SUM(TOTPRO) AS totalImplementacaoMinutos,
+		SUM(REV_PROGRAMACAO) AS totalRevicaoMinutos,
+		SUM(TOTAL_MINUTOS) AS totalProducaoHorasMinutos,
+        SUM(TOTAL_MINUTOS) / 60 AS totalProducaoHoras,
 		SUM(HORAS_CORRECAO)  / 60 AS totalIncidentesHoras,
 		(SUM(TOTAL_MINUTOS) / 60) / COUNT(*) AS mediaProducao,
 		(SUM(HORAS_CORRECAO)  / 60) / SUM(NUMERO_ERROS) AS mediaIncidentes
 	FROM 
 		v_fichas
-	GROUP BY 
-		Periodo;
+	WHERE
+		TIPO IN (5, 6, 7) AND
+		REV_PROGRAMACAO < TOTPRO AND
+        HORAS_CORRECAO * 100 / TOTAL_MINUTOS < 60;
 
 
+SELECT * FROM INFORMACAO_PERIODO;
 
-SELECT * FROM T;
+SELECT sum(TOT)FROM TEMPO_MEDIO_REVISAO_CORRECAO;
+
+
+SELECT * FROM TEMPO_REVISAO;
+SELECT * FROM TEMPO_MEDIO_REVISAO_CORRECAO;
 
 
 SELECT
@@ -137,6 +166,34 @@ WHERE Percentual_Revisao > 60 AND Percentual_Revisao < 70 AND HORAS_CORRECAO > 0
 ORDER BY T DESC
 ;
 
+SELECT * FROM TEMPO_MEDIO_PRODUCAO;
 
 
 
+SELECT SUM(REV_PROGRAMACAO) FROM v_fichas WHERE TIPO IN (5, 6, 7);
+
+
+SELECT
+	PERIODO AS periodo,
+	Percentual_Revisao,
+	CONCAT(MIN(Percentual_Revisao), ' - ', MAX(Percentual_Revisao)) AS intervalo,
+	SUM(HORAS_CORRECAO)
+FROM
+	SUBTEMPO_REVISAO
+WHERE 
+	TIPO IN (5, 6, 7)
+GROUP BY 
+	FLOOR(PERCENTUAL_REVISAO / 10)
+ORDER BY intervalo;
+
+
+	SELECT
+		PERIODO AS periodo,
+        Percentual_Revisao,
+        CONCAT(MIN(Percentual_Revisao), ' - ', MAX(Percentual_Revisao)) AS intervalo,
+		SUM(HORAS_CORRECAO) * 100 / SUM(TOTAL_MINUTOS) AS incidentes
+	FROM
+		SUBTEMPO_REVISAO
+	WHERE 
+		TIPO IN (5, 6, 7)
+	ORDER BY intervalo;
